@@ -166,9 +166,10 @@ _getPublicProcAddress(const char *procName)
 
 void * _eglGetProcAddress_KDAB(const char *procName, void (* (_eglGetProcAddress)(const char*))())
 {
-    void * proc;
-    os::log("apitrace: KDAB eglGetProcAddress\n");
-    if (procName[0] == 'g' && procName[1] == 'l') {
+    void * proc = nullptr;
+    os::log("apitrace: KDAB eglGetProcAddress %s\n", procName);
+    if ((procName[0] == 'e' && procName[1] == 'g' && procName[2] == 'l') ||
+        (procName[0] == 'g' && procName[1] == 'l')) {
         os::log("apitrace: looking up gl function by loading lib ourselves\n");
         /* TODO: Use GLESv1/GLESv2 on a per-context basis. */
 
@@ -191,6 +192,19 @@ void * _eglGetProcAddress_KDAB(const char *procName, void (* (_eglGetProcAddress
         }
         if (libGLESv1) {
             proc = dlsym(libGLESv1, procName);
+        }
+        if (proc) {
+            return proc;
+        }
+
+        static void *libEGL = NULL;
+        if (!libEGL) {
+            os::log("apitrace: loading libEGL\n");
+            libEGL = _dlopen("libEGL.so", RTLD_LOCAL | RTLD_LAZY);
+        }
+        if (libEGL) {
+            proc = dlsym(libEGL, procName);
+            os::log("apitrace: dlsym(libEGL, %s) = %p\n", procName, proc);
         }
         if (proc) {
             return proc;
