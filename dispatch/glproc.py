@@ -590,6 +590,7 @@ if __name__ == '__main__':
     print
     print 'void * _getPublicProcAddress(const char *procName);'
     print 'void * _getPrivateProcAddress(const char *procName);'
+    print 'void * _eglGetProcAddress_KDAB(const char *procName, void (* (_eglGetProcAddress)(const char*))());'
     print
     dispatcher = GlDispatcher()
     print

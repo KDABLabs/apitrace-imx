@@ -72,10 +72,12 @@ _getPublicProcAddress(const char *procName)
      * symbols are exported by multiple APIs/SOs, and it's not trivial to
      * determine which API/SO we should get the current symbol from.
      */
+    // egl
     proc = dlsym(RTLD_NEXT, procName);
     if (proc) {
         return proc;
     }
+    os::log("apitrace: _getPublicProcAddress(%s) couldn't dlsym(RTLD_NEXT)\n", procName);
 
     /*
      * dlsym(RTLD_NEXT, ...) will fail when the SO containing the symbol was
@@ -87,13 +89,16 @@ _getPublicProcAddress(const char *procName)
      */
 
     if (procName[0] == 'e' && procName[1] == 'g' && procName[2] == 'l') {
+        os::log("apitrace: loading libEGL ourselves\n");
         static void *libEGL = NULL;
         if (!libEGL) {
             libEGL = _dlopen("libEGL.so", RTLD_LOCAL | RTLD_LAZY);
             if (!libEGL) {
+                os::log("apitrace: loading libEGL ourselves didn't work: %s\n", dlerror());
                 return NULL;
             }
         }
+        os::log("apitrace: dlsym(libEGL, \"%s\")\n", procName);
         return dlsym(libEGL, procName);
     }
 
@@ -114,12 +119,12 @@ _getPublicProcAddress(const char *procName)
      *
      * See https://github.com/apitrace/apitrace/issues/301#issuecomment-68532248
      */
-    if (strcmp(procName, "eglGetProcAddress") != 0) {
-        proc = (void *) _eglGetProcAddress(procName);
-        if (proc) {
-            return proc;
-        }
-    }
+    // if (strcmp(procName, "eglGetProcAddress") != 0) {
+    //     proc = (void *) _eglGetProcAddress(procName);
+    //     if (proc) {
+    //         return proc;
+    //     }
+    // }
 
     /*
      * TODO: We could futher mitigate against using the wrong SO by:
@@ -128,14 +133,17 @@ _getPublicProcAddress(const char *procName)
      */
 
     if (procName[0] == 'g' && procName[1] == 'l') {
+        os::log("apitrace: looking up gl function by loading lib ourselves\n");
         /* TODO: Use GLESv1/GLESv2 on a per-context basis. */
 
         static void *libGLESv2 = NULL;
         if (!libGLESv2) {
+            os::log("apitrace: loading libGLESv2\n");
             libGLESv2 = _dlopen("libGLESv2.so", RTLD_LOCAL | RTLD_LAZY);
         }
         if (libGLESv2) {
             proc = dlsym(libGLESv2, procName);
+            os::log("apitrace: dlsym(libGLESv2, %s) = %p\n", procName, proc);
         }
         if (proc) {
             return proc;
@@ -154,6 +162,44 @@ _getPublicProcAddress(const char *procName)
     }
 
     return NULL;
+}
+
+void * _eglGetProcAddress_KDAB(const char *procName, void (* (_eglGetProcAddress)(const char*))())
+{
+    void * proc;
+    os::log("apitrace: KDAB eglGetProcAddress\n");
+    if (procName[0] == 'g' && procName[1] == 'l') {
+        os::log("apitrace: looking up gl function by loading lib ourselves\n");
+        /* TODO: Use GLESv1/GLESv2 on a per-context basis. */
+
+        static void *libGLESv2 = NULL;
+        if (!libGLESv2) {
+            os::log("apitrace: loading libGLESv2\n");
+            libGLESv2 = _dlopen("libGLESv2.so", RTLD_LOCAL | RTLD_LAZY);
+        }
+        if (libGLESv2) {
+            proc = dlsym(libGLESv2, procName);
+            os::log("apitrace: dlsym(libGLESv2, %s) = %p\n", procName, proc);
+        }
+        if (proc) {
+            return proc;
+        }
+
+        static void *libGLESv1 = NULL;
+        if (!libGLESv1) {
+            libGLESv1 = _dlopen("libGLESv1_CM.so", RTLD_LOCAL | RTLD_LAZY);
+        }
+        if (libGLESv1) {
+            proc = dlsym(libGLESv1, procName);
+        }
+        if (proc) {
+            return proc;
+        }
+    }
+
+    os::log("apitrace: defaulting to original eglGetProcAddress\n");
+    proc = (void*)_eglGetProcAddress(procName);
+    return proc;
 }
 
 /*

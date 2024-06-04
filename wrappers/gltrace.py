@@ -853,13 +853,15 @@ class GlTracer(Tracer):
                     print '    } else if (strcmp("%s", (const char *)%s) == 0) {' % (marker_function, nameArg)
                     print '        _result = (%s)&%s;' % (function.type, marker_function)
             print '    } else {'
-            Tracer.doInvokeFunction(self, function)
+            # Tracer.doInvokeFunction(self, function)
+            print '     _result = (__eglMustCastToProperFunctionPointerType)_eglGetProcAddress_KDAB(procname, _eglGetProcAddress);';
 
             # Replace function addresses with ours
             # XXX: Doing this here instead of wrapRet means that the trace will
             # contain the addresses of the wrapper functions, and not the real
             # functions, but in practice this should make no difference.
             if function.name in self.getProcAddressFunctionNames:
+                print '    os::log("apitrace: got %p for %s\\n", _result, procname);'
                 print '    _result = _wrapProcAddress(%s, _result);' % (nameArg,)
 
             print '    }'
